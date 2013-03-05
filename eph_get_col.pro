@@ -33,20 +33,33 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: eph_get_col.pro,v 1.1 2013/01/19 13:28:49 jpmorgen Exp $
+; $Id: eph_get_col.pro,v 1.2 2013/03/05 22:04:00 jpmorgen Exp $
 ;
 ; $Log: eph_get_col.pro,v $
+; Revision 1.2  2013/03/05 22:04:00  jpmorgen
+; Fix column listing bug.  Get ready to remove abbreviation feature,
+; since it doesn't work with "r"
+;
 ; Revision 1.1  2013/01/19 13:28:49  jpmorgen
 ; Initial revision
 ;
 ;-
 function eph_get_col, $
    fname_or_lun, $
-   col_list=col_list, $ ;; list of column names matching the JPL ephemerides output (can be the first few char, if unique)
-   target=target, $
-   observer=observer
+   col_list=col_list, $ ;; list of column names matching the JPL ephemerides output.  Must be unique (can be the first few char, if unique)
+   _REF_EXTRA=extra ;; return values from eph_get_info
 
   init = {tok_sysvar}
+
+  ;; Set up a CATCH so that we can free our lun, if we opened it
+  CATCH, err
+  if err ne 0 then begin
+     CATCH, /CANCEL
+     if size(/type, fname_or_lun) eq !tok.string and N_elements(elun) ne 0 then $
+        free_lun, elun
+     ;; Pass the message on to the caller, who may have set a CATCH
+     message, /NONAME, !error_state.msg
+  endif
 
   if N_elements(fname_or_lun) eq 0 then $
      message, 'ERROR: specify fname or open file logical unit.  I need a file to read.'
@@ -59,9 +72,9 @@ function eph_get_col, $
   if (fstat(elun)).open eq 0 then $
      message, 'ERROR: file/lun ' + strtrim(fname_or_lun, 2) + ' is not open'
 
-  ;; Read our object and center keywords
-  if arg_present(target) or arg_present(observer) then begin
-     eph_get_info, elun, target=target, observer=observer
+  ;; Read information from the ephemeris header, if desired
+  if N_elements(extra) ne 0 then begin
+     eph_get_info, elun, _EXTRA=extra
   endif
 
   ;; Read to the $$SOE one line at a time, but keep the previous two
@@ -71,13 +84,22 @@ function eph_get_col, $
      ;; Save off previous lines
      line0 = line1
      line1 = line2
+     ON_IOERROR, rherr
      readf, elun, line2
+     ;; Hide our error label in a statement that doesn't
+     ;; normally get executed
+     if 0 then begin
+        rherr: 
+        message, 'ERROR: unexpected IO error while looking for $$SOE'
+     endif ;; file I/O error condition
      a = strpos(line2, '$$SOE')
   endrep until a eq 0
 
   ;; Create an array of strings, each element has a column header in
   ;; it.  Here is where CSV output is critical
   col_heads = strsplit(line0, ',', /extract)
+  ;; Trim off leading and trailing spaces
+  col_heads = strtrim(col_heads, 2)
 
   ;; If no col_list is specified, return all columns.
   if N_elements(col_list) eq 0 then begin
@@ -129,9 +151,15 @@ function eph_get_col, $
   ;; overwritten.  An array or struct has a forced type.
   darr = make_array(2, value=0d)
 
-  ;; Read in a line of the ephemeris
+  ;; Read in the first line of the ephemeris
   line = ''
+  ON_IOERROR, rc1err
   readf, elun, line
+  if 0 then begin
+     rc1err: 
+     message, 'ERROR: unexpected IO error while reading first line of ephemeris'
+  endif ;; file I/O error condition
+
   ;; Break it up into strings
   sdata = strsplit(line, ',', /extract)
   for icl=0, N_elements(col_list)-1 do begin
@@ -145,7 +173,7 @@ function eph_get_col, $
      ;; (e.g. airmass below the horizon).  We want to store that as
      ;; NAN
      if strlowcase(data) eq 'n.a.' then begin
-        data = !value.d_nan
+        data = !values.d_nan
      endif else begin
         ;; Use IDL's type casting and IO error catching to help
         ;; figure out if something needs to be stored as a string or
@@ -159,23 +187,11 @@ function eph_get_col, $
         data = darr[0]
 
         ;; The error condition leaves data as a string, the non-error
-        ;; condition leaves data as a real
+        ;; condition leaves data as a real, so there is nothing left
+        ;; to do
         icerr: 
 
-        endif ;; error condition
-     endelse
-
-     ;; Figure out if our data must be stored in type string.  This
-     ;; misses space-delimited hh mm ss.s angles, which is why those
-     ;; should be requested in decimal degrees anyway
-     ;; --> sech for n.a. which are really numeric
-     if stregex(/boolean, sdata[col_nums[icl]], '[a-z,\*]', /fold_case) then begin
-        ;; This is a string
-        data = sdata[col_nums[icl]]
-     endif else begin
-        ;; This is a number
-        data = double(sdata[col_nums[icl]])
-     endelse
+     endelse ;; not n.a. 
 
      ;; If this is the first time through, create a structure with
      ;; a generic tag name
@@ -194,7 +210,16 @@ function eph_get_col, $
 
   ;; Prepare a template single array element
   new_struct = ret_struct
+  ON_IOERROR, rl1err
   readf, elun, line
+
+  ;; Hide our error label in a statement that doesn't
+  ;; normally get executed
+  if 0 then begin
+     rl1err: 
+     message, 'ERROR: unexpected IO error'
+  endif ;; file I/O error condition
+
   while strpos(line, '$$EOE') eq -1 do begin
      sdata = strsplit(line, ',', /extract)
      for icl=0, N_elements(col_list)-1 do begin
@@ -206,18 +231,28 @@ function eph_get_col, $
         ;; normally get executed
         if 0 then begin
            tcerr: 
-           ;; If we made it here, we are trying to stuff a string,
-           ;; like n.a. into a double type
-           message, 'WARNING: column ' + strtrim(icl, 2) + ' had a type conversion error' ;;,  /CONTINUE
+           ;; Mark type conversion errors with NANs.  They are
+           ;; probably n.a., anyway
+           new_struct.(icl) = !values.d_nan           
         endif ;; error condition
      endfor ;; each column in col_list
+     ;; Cancel our type conversion error condition 
+     ON_IOERROR, null
 
      ;; Append in a memory sensitive way to end of ret_struct
      ret_struct = [temporary(ret_struct), new_struct]
-     ;; Cancel our type conversion IOERROR condition --> eventually
-     ;; may want a graceful IO error handler for premature EOF
-     ;; Read in our next (or last) line
+
+     ;; Get ready to read our next line
+     ON_IOERROR, rlerr
      readf, elun, line
+     
+     ;; Hide our error label in a statement that doesn't
+     ;; normally get executed
+     if 0 then begin
+        rlerr: 
+        message, 'ERROR: unexpected IO error'
+     endif ;; file I/O error condition
+
   endwhile
 
   ;; Close our file and free the lun, if we were the ones who opened it
