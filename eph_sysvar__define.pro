@@ -1,5 +1,5 @@
 ; +
-; $Id: eph_sysvar__define.pro,v 1.1 2004/01/15 17:08:23 jpmorgen Exp $
+; $Id: eph_sysvar__define.pro,v 1.2 2014/01/24 21:16:19 jpmorgen Exp $
 
 ; eph_sysvar__define.pro 
 
@@ -20,16 +20,29 @@
 
 ; -
 
-pro eph_sysvar__define
+pro eph_sysvar__define, top
   ;; System variables cannot be redefined and named structures cannot
   ;; be changed once they are defined, so it is OK to check this right
   ;; off the bat
-  defsysv, '!eph', exists=eph_exists
-  if eph_exists eq 1 then return
-  
+  defsysv, '!eph', exists=exists
+  if exists eq 1 then begin
+     if keyword_set(top) then $
+       !eph.top = top
+     return
+  endif
+
+  if N_elements(top) eq 0 then $
+    top = '/data/NAIF'
+
   eph $
     = {eph_sysvar, $
-       sol_sys_bary	:	000, $
+       top		:	top, $
+       jd_reduced	:	2400000.d, $
+       kernels_loaded:	0, $
+       p_idx		:	[0,1,2], $ ;; state vector indices
+       v_idx		:	[3,4,5], $
+       s_ssb		:	make_array(6, value=0d), $
+       ssb		:	000, $
        sun		:	010, $  
        $ ;;
        mercury_bary	:	001, $ 
@@ -140,7 +153,6 @@ pro eph_sysvar__define
        cosmo	:	21,   $  ;; cosmological object
        obj	:	22,   $  ;; unspecified object
        back	:	23,   $	 ;; unspecified background
-
        names		:	strarr(1000)}
 
   eph.names[000] = 'Solar System Barycenter'
