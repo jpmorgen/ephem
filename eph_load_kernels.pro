@@ -63,7 +63,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: eph_load_kernels.pro,v 1.1 2014/01/24 21:16:32 jpmorgen Exp $
+; $Id: eph_load_kernels.pro,v 1.2 2015/03/03 20:38:37 jpmorgen Exp $
 ;-
 
 pro eph_load_kernels, UT, objs
@@ -82,18 +82,18 @@ pro eph_load_kernels, UT, objs
   ;; Leap seconds and relativistic corrections to get from Coordinated
   ;; Universal Time (UTC) to Barycentric Dynamical Time (TDB) also
   ;; called Ephemeris Time (ET)
-  cspice_furnsh, !eph.top + '/generic_kernels/lsk/naif0007.tls'
+  cspice_furnsh, !eph.top + '/generic_kernels/lsk/naif0010.tls'
   ;; Basic planetary constants, including orientation and radius values
-  cspice_furnsh, !eph.top + '/generic_kernels/pck/pck00007.tpc'
+  cspice_furnsh, !eph.top + '/generic_kernels/pck/pck00010.tpc'
   ;; An alias for ITRF93
-  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_fixed.pck'
-  ;; The ITR93A earth rotation model.  This goes from 1972 to the end of 2003
-  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_720101_031229.bpc'
+  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_fixed.tf'
+  ;; The ITR93A earth rotation model.  This goes from 1972 to April 2007
+  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_720101_070426.bpc'
   ;; This extends the above rotation model to 2023.
-  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_031228_231229_predict.bpc'
+  cspice_furnsh, !eph.top + '/generic_kernels/pck/earth_070425_370426_predict.bpc'
   ;; Orbit paths for Earth and Jupiter barycenters, Sun + Galilean
-  ;; satellites, Amalthea and Thebe for 1990 -- 2025
-  cspice_furnsh, !eph.top + '/generic_kernels/spk/satellites/jup204-s2.bsp'
+  ;; satellites and a few of the small Jovian moons 1900 -- 2100
+  cspice_furnsh, !eph.top + '/generic_kernels/spk/satellites/jup310.bsp'
 
   !eph.kernels_loaded = 1
 
@@ -106,8 +106,8 @@ pro eph_load_kernels, UT, objs
   ;; ftp@naif.jpl.nasa.gov:/pub/naif/generic_kernels/lsk
   ;; or check on the status of leap seconds at:
   ;; http://www.iers.org
-  leap_sec_file = !eph.top + '/generic_kernels/lsk/naif0007.tls'
-  good_through = '2004-JUL-1'
+  leap_sec_file = !eph.top + '/generic_kernels/lsk/naif0010.tls'
+  good_through = '2012-JUL-1'
 
 
 
