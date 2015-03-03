@@ -33,9 +33,12 @@
 ;
 ; MODIFICATION HISTORY:
 ;
-; $Id: eph_get_col.pro,v 1.2 2013/03/05 22:04:00 jpmorgen Exp $
+; $Id: eph_get_col.pro,v 1.3 2015/03/03 20:36:50 jpmorgen Exp $
 ;
 ; $Log: eph_get_col.pro,v $
+; Revision 1.3  2015/03/03 20:36:50  jpmorgen
+; Summary: Go back to exact column names, check in for git
+;
 ; Revision 1.2  2013/03/05 22:04:00  jpmorgen
 ; Fix column listing bug.  Get ready to remove abbreviation feature,
 ; since it doesn't work with "r"
@@ -46,7 +49,7 @@
 ;-
 function eph_get_col, $
    fname_or_lun, $
-   col_list=col_list, $ ;; list of column names matching the JPL ephemerides output.  Must be unique (can be the first few char, if unique)
+   col_list=col_list, $ ;; list of column names matching the JPL ephemerides output.  Must be exact
    _REF_EXTRA=extra ;; return values from eph_get_info
 
   init = {tok_sysvar}
@@ -112,12 +115,10 @@ function eph_get_col, $
   ;; Find which column numbers we are looking for
   col_nums = make_array(N_elements(col_list), value=-1)
   for icl=0,N_elements(col_list)-1 do begin
-     ;; Allow the user to input only the first few characters of the
-     ;; column name
      nchar = strlen(col_list[icl])
      ;; Search through all column headers in ephemeris for match
      for ich=0, N_elements(col_heads)-1 do begin
-        if strcmp(col_list[icl], col_heads[ich], nchar, /fold_case) then begin
+        if strcmp(col_list[icl], col_heads[ich], /fold_case) then begin
            ;; We have a match.  Check for duplicates.  For now, raise
            ;; a nasty error
            if col_nums[icl] ne -1 then $
